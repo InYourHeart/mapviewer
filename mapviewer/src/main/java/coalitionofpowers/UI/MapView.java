@@ -28,8 +28,9 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
     private final BufferedImage terrainImage;
 
     private double zoomFactor = 1;
-    private final double minZoom = 0.25;
-    private final double maxZoom = 5;
+    private final double minZoom = 0.1;
+    private final double maxZoom = 20;
+    private final double zoomIncrement = 0.2;
     private double prevZoomFactor = 1;
 
     private boolean dragging;
@@ -42,7 +43,7 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
     private int yDiff;
     private Point startPoint;
 
-    private MapController mapController;
+    private final MapController mapController;
 
     public MapView(BufferedImage baseImageFilepath, BufferedImage terrainImageFilepath, MapController mapController) throws IOException {
         baseImage = baseImageFilepath;
@@ -141,12 +142,18 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
 
         //Zoom in
         if (numRotation < 0 && zoomFactor < maxZoom) {
-            zoomFactor += 0.25;
+            zoomFactor += zoomFactor * zoomIncrement;
+            if (zoomFactor > maxZoom) {
+                zoomFactor = maxZoom;
+            }
             repaint();
         }
         //Zoom out
         if (numRotation > 0 && zoomFactor > minZoom) {
-            zoomFactor -= 0.25;
+            zoomFactor -= zoomFactor * zoomIncrement;
+            if (zoomFactor < minZoom) {
+                zoomFactor = minZoom;
+            }
             repaint();
         }
     }
@@ -218,5 +225,4 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
     public void mouseExited(MouseEvent e) {
 
     }
-
 }

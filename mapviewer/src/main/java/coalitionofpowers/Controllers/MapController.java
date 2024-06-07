@@ -16,19 +16,22 @@ import com.opencsv.exceptions.CsvException;
 import coalitionofpowers.Model.Claim;
 import coalitionofpowers.Model.Terrain;
 import coalitionofpowers.UI.ApplicationView;
+import coalitionofpowers.UI.InfoView;
 import coalitionofpowers.UI.MapView;
 
 public class MapController {
 
     private final ApplicationView applicationView;
     private final MapView mapView;
+    private final InfoView infoView;
 
     private final Map<Integer, Claim> claimList;
     private final Map<Integer, Terrain> terrainList;
 
     public MapController(String title, String baseImageFilepath, String terrainImageFilepath) throws IOException {
         mapView = new MapView(ImageIO.read(new File(baseImageFilepath)), ImageIO.read(new File(terrainImageFilepath)), this);
-        applicationView = new ApplicationView("Coalition of Powers Map Viewer", mapView);
+        infoView = new InfoView();
+        applicationView = new ApplicationView("Coalition of Powers Map Viewer", mapView, infoView);
 
         claimList = new HashMap<>();
         terrainList = new HashMap<>();
@@ -100,9 +103,14 @@ public class MapController {
         Claim claim = claimList.get(claimColor);
 
         if (claim == null) {
+            infoView.setNameLabel("None selected");
+            infoView.setTaxLabel("N/A");
+            infoView.setManpowerLabel("N/A");
             return;
         }
 
-        mapView.showInfoForClaim(claim, clickPoint);
+        infoView.setNameLabel(claim.name);
+        infoView.setTaxLabel(String.valueOf(claim.totalTax));
+        infoView.setManpowerLabel(String.valueOf(claim.totalManpower));
     }
 }
