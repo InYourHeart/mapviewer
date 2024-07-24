@@ -178,9 +178,9 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
         int mouseY = (int) ((e.getY() - yOffset) / zoomFactor);
 
         int claimColor = baseImage.getRGB(mouseX, mouseY);
-        baseImage.setRGB(mouseX, mouseY, claimColor);
+        int terrainColor = terrainImage.getRGB(mouseX, mouseY);
 
-        mapController.showInfoForClaim(claimColor & 0x0000000000ffffff, e.getPoint());
+        mapController.showInfoForPixel(claimColor & 0x0000000000ffffff, terrainColor & 0x0000000000ffffff, e.getPoint());
     }
 
     public void showInfoForClaim(Claim claim, Point point) {
