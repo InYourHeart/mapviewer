@@ -44,17 +44,17 @@ public class MapController {
         cityList = new HashMap<>();
     }
 
-    public void loadClaimList(String filepath) throws IOException, CsvException {
+    private List<String[]> getValuesFromCSV(String filepath) throws IOException, CsvException {
         FileReader fr = new FileReader(filepath);
 
         CSVParser parser = new CSVParserBuilder().withSeparator(';').build();
         CSVReader csvReader = new CSVReaderBuilder(fr).withCSVParser(parser).build();
 
-        List<String[]> claimDataList = csvReader.readAll();
+        return csvReader.readAll();
+    }
 
-        for (int i = 0; i < claimDataList.size(); i++) {
-            String[] claimData = claimDataList.get(i);
-
+    public void loadClaimList(String filepath) throws IOException, CsvException {
+        for (String[] claimData : getValuesFromCSV(filepath)) {
             String claimName = claimData[0];
             String claimHex = claimData[1];
 
@@ -63,16 +63,7 @@ public class MapController {
     }
 
     public void loadCityList(String filepath) throws IOException, CsvException {
-        FileReader fr = new FileReader(filepath);
-
-        CSVParser parser = new CSVParserBuilder().withSeparator(';').build();
-        CSVReader csvReader = new CSVReaderBuilder(fr).withCSVParser(parser).build();
-
-        List<String[]> cityDataList = csvReader.readAll();
-
-        for (int i = 1; i < cityDataList.size(); i++) {
-            String[] cityData = cityDataList.get(i);
-
+        for (String[] cityData : getValuesFromCSV(filepath)) {
             String cityName = cityData[0];
             String cityHex = cityData[2];
 
@@ -81,19 +72,13 @@ public class MapController {
     }
 
     public void loadTerrainList(String filepath) throws IOException, CsvException {
-        FileReader fr = new FileReader(filepath);
+        for (String[] terrainData : getValuesFromCSV(filepath)) {
+            String terrainName = terrainData[0];
+            String terrainHex = terrainData[1];
+            int terrainBaseTax = Integer.parseInt(terrainData[2]);
+            int terrainBaseManpower = Integer.parseInt(terrainData[3]);
 
-        try (CSVReader csvr = new CSVReader(fr)) {
-            List<String[]> terrainDataList = csvr.readAll();
-
-            for (String[] terrainData : terrainDataList) {
-                String terrainName = terrainData[0];
-                String terrainHex = terrainData[1];
-                int terrainBaseTax = Integer.parseInt(terrainData[2]);
-                int terrainBaseManpower = Integer.parseInt(terrainData[3]);
-
-                terrainList.put(Integer.parseInt(terrainHex, 16) & 0xffffff, new Terrain(terrainName, terrainHex, terrainBaseTax, terrainBaseManpower));
-            }
+            terrainList.put(Integer.parseInt(terrainHex, 16) & 0xffffff, new Terrain(terrainName, terrainHex, terrainBaseTax, terrainBaseManpower));
         }
     }
 
