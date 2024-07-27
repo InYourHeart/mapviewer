@@ -29,11 +29,15 @@ public class Main {
     private static void createAndShowGUI() throws IOException, CsvException, InterruptedException {
         MapController mapController = new MapController("Coalition of Powers Map Viewer",
                 "./maps/political.png",
-                "./maps/terrain.png");
+                "./maps/terrain.png",
+                "./maps/regions.png",
+                "./maps/occupations.png",
+                "./maps/devastation.png");
 
         mapController.loadClaimList("./data/claims.csv");
         mapController.loadTerrainList("./data/terrains.csv");
         mapController.loadCityList("./data/cities.csv");
+        mapController.loadRegionList("./data/regions.csv");
 
         mapController.calculateClaimValues();
     }

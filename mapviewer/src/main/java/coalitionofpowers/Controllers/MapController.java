@@ -19,6 +19,7 @@ import com.opencsv.exceptions.CsvException;
 
 import coalitionofpowers.Model.City;
 import coalitionofpowers.Model.Claim;
+import coalitionofpowers.Model.Region;
 import coalitionofpowers.Model.Terrain;
 import coalitionofpowers.UI.ApplicationView;
 import coalitionofpowers.UI.InfoView;
@@ -33,15 +34,25 @@ public class MapController {
     private final Map<Integer, Claim> claimList;
     private final Map<Integer, Terrain> terrainList;
     private final Map<Integer, City> cityList;
+    private final Map<Integer, Region> regionList;
 
-    public MapController(String title, String baseImageFilepath, String terrainImageFilepath) throws IOException {
-        mapView = new MapView(ImageIO.read(new File(baseImageFilepath)), ImageIO.read(new File(terrainImageFilepath)), this);
+    public MapController(String title, String politicalImageFilepath, String terrainImageFilepath, String regionImageFilepath,
+            String occupationsImageFilepath, String devastationImageFilepath) throws IOException {
+
+        mapView = new MapView(ImageIO.read(new File(politicalImageFilepath)),
+                ImageIO.read(new File(terrainImageFilepath)),
+                ImageIO.read(new File(regionImageFilepath)),
+                ImageIO.read(new File(occupationsImageFilepath)),
+                ImageIO.read(new File(devastationImageFilepath)),
+                this);
+
         infoView = new InfoView();
         applicationView = new ApplicationView("Coalition of Powers Map Viewer", mapView, infoView);
 
         claimList = new HashMap<>();
         terrainList = new HashMap<>();
         cityList = new HashMap<>();
+        regionList = new HashMap<>();
     }
 
     private List<String[]> getValuesFromCSV(String filepath) throws IOException, CsvException {
@@ -62,15 +73,6 @@ public class MapController {
         }
     }
 
-    public void loadCityList(String filepath) throws IOException, CsvException {
-        for (String[] cityData : getValuesFromCSV(filepath)) {
-            String cityName = cityData[0];
-            String cityHex = cityData[2];
-
-            cityList.put(Integer.parseInt(cityHex, 16) & 0xffffff, new City(cityName));
-        }
-    }
-
     public void loadTerrainList(String filepath) throws IOException, CsvException {
         for (String[] terrainData : getValuesFromCSV(filepath)) {
             String terrainName = terrainData[0];
@@ -82,9 +84,32 @@ public class MapController {
         }
     }
 
+    public void loadCityList(String filepath) throws IOException, CsvException {
+        for (String[] cityData : getValuesFromCSV(filepath)) {
+            String cityName = cityData[0];
+            String cityHex = cityData[2];
+
+            cityList.put(Integer.parseInt(cityHex, 16) & 0xffffff, new City(cityName));
+        }
+    }
+
+    public void loadRegionList(String filepath) throws IOException, CsvException {
+        for (String[] regionData : getValuesFromCSV(filepath)) {
+            String regionName = regionData[0];
+            String regionHex = regionData[1];
+            double regionTaxModifier = Double.parseDouble(regionData[2]);
+            double regionManpowerModifier = Double.parseDouble(regionData[3]);
+
+            regionList.put(Integer.parseInt(regionHex, 16) & 0xffffff, new Region(regionName, regionTaxModifier, regionManpowerModifier));
+        }
+    }
+
     public void calculateClaimValues() throws InterruptedException, IOException {
-        int[] baseImagePixels = mapView.getBaseImagePixels();
+        int[] politicalImagePixels = mapView.getClaimImagePixels();
         int[] terrainImagePixels = mapView.getTerrainImagePixels();
+        int[] regionsImagePixels = mapView.getRegionsImagePixels();
+        int[] occupationsImagePixels = mapView.getOccupationsImagePixels();
+        int[] devastationImagePixels = mapView.getDevastationImagePixels();
 
         int height = mapView.getMapHeight();
         int width = mapView.getMapWidth();
@@ -94,20 +119,29 @@ public class MapController {
 
         for (int j = 0; j < height; j++) {
             for (int i = 0; i < width; i++) {
-                int baseImagePixel = baseImagePixels[j * width + i] & 0x0000000000ffffff;
+                int pixelIndex = j * width + i;
 
-                if (baseImagePixel == 16777215) {
+                int politicalPixel = politicalImagePixels[pixelIndex] & 0x0000000000ffffff;
+                int occupationPixel = occupationsImagePixels[pixelIndex] & 0x000000000ffffff;
+
+                //If pixel is occupied and the occupier exists, do not count it.
+                if (claimList.containsKey(occupationPixel)) {
+                    continue;
+                }
+
+                if (politicalPixel == 16777215) {
                     whitePixelsInPoliticalMap += "(" + j + "," + i + ")\n";
                     System.out.println(j + "," + i);
                     continue;
                 }
 
-                if (baseImagePixel == -1 || baseImagePixel == 0) {
+                if (politicalPixel == -1 || politicalPixel == 0) {
                     continue;
                 }
 
-                if (claimList.get(baseImagePixel) != null) {
-                    int terrainPixel = terrainImagePixels[j * width + i] & 0x0000000000ffffff;
+                Claim claim = claimList.get(politicalPixel);
+                if (claim != null) {
+                    int terrainPixel = terrainImagePixels[pixelIndex] & 0x0000000000ffffff;
 
                     if (terrainPixel == 16777215) {
                         whitePixelsInTerrainMap += "(" + j + "," + i + ")\n";
@@ -115,11 +149,20 @@ public class MapController {
                         continue;
                     }
 
-                    Terrain pixelTerrain = terrainList.get(terrainPixel);
+                    Terrain terrain = terrainList.get(terrainPixel);
 
-                    if (pixelTerrain != null) {
-                        claimList.get(baseImagePixel).totalTax += pixelTerrain.baseTax;
-                        claimList.get(baseImagePixel).totalManpower += pixelTerrain.baseManpower;
+                    if (terrain != null) {
+                        double taxModifier = 1;
+                        double manpowerModifier = 1;
+
+                        Region region = regionList.get(regionsImagePixels[pixelIndex] & 0x0000000000ffffff);
+                        if (region != null) {
+                            taxModifier *= region.taxModifier;
+                            manpowerModifier *= region.manpowerModifier;
+                        }
+
+                        claim.totalTax += terrain.baseTax * taxModifier;
+                        claim.totalManpower += terrain.baseManpower * manpowerModifier;
                     }
                 }
             }

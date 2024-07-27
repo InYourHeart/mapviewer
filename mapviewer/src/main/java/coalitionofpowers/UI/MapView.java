@@ -24,8 +24,11 @@ import coalitionofpowers.Model.Claim;
 
 public class MapView extends JPanel implements MouseWheelListener, MouseListener, MouseMotionListener {
 
-    private final BufferedImage baseImage;
+    private final BufferedImage claimsImage;
     private final BufferedImage terrainImage;
+    private final BufferedImage regionsImage;
+    private final BufferedImage occupationsImage;
+    private final BufferedImage devastationImage;
 
     private double zoomFactor = 1;
     private final double minZoom = 0.1;
@@ -45,9 +48,15 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
 
     private final MapController mapController;
 
-    public MapView(BufferedImage baseImageFilepath, BufferedImage terrainImageFilepath, MapController mapController) throws IOException {
-        baseImage = baseImageFilepath;
-        terrainImage = terrainImageFilepath;
+    public MapView(BufferedImage claimImage, BufferedImage terrainImage, BufferedImage regionImage,
+            BufferedImage occupationsImage, BufferedImage devastationImage, MapController mapController) throws IOException {
+
+        this.claimsImage = claimImage;
+        this.terrainImage = terrainImage;
+        this.regionsImage = regionImage;
+        this.occupationsImage = occupationsImage;
+        this.devastationImage = devastationImage;
+
         this.mapController = mapController;
 
         initComponent();
@@ -59,32 +68,42 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
         addMouseListener(this);
     }
 
-    public int[] getBaseImagePixels() throws InterruptedException {
-        int width = baseImage.getWidth();
-        int height = baseImage.getHeight();
-        int[] pixels = new int[width * height];
-
-        new PixelGrabber(baseImage, 0, 0, width, height, pixels, 0, width).grabPixels();
-
-        return pixels;
+    public int[] getClaimImagePixels() throws InterruptedException {
+        return getPixels(claimsImage);
     }
 
     public int[] getTerrainImagePixels() throws InterruptedException {
-        int width = terrainImage.getWidth();
-        int height = terrainImage.getHeight();
+        return getPixels(terrainImage);
+    }
+
+    public int[] getRegionsImagePixels() throws InterruptedException {
+        return getPixels(regionsImage);
+    }
+
+    public int[] getOccupationsImagePixels() throws InterruptedException {
+        return getPixels(occupationsImage);
+    }
+
+    public int[] getDevastationImagePixels() throws InterruptedException {
+        return getPixels(devastationImage);
+    }
+
+    private int[] getPixels(BufferedImage image) throws InterruptedException {
+        int width = image.getWidth();
+        int height = image.getHeight();
         int[] pixels = new int[width * height];
 
-        new PixelGrabber(terrainImage, 0, 0, width, height, pixels, 0, width).grabPixels();
+        new PixelGrabber(image, 0, 0, width, height, pixels, 0, width).grabPixels();
 
         return pixels;
     }
 
     public int getMapHeight() {
-        return baseImage.getHeight();
+        return claimsImage.getHeight();
     }
 
     public int getMapWidth() {
-        return baseImage.getWidth();
+        return claimsImage.getWidth();
     }
 
     @Override
@@ -130,8 +149,8 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
         g2.transform(at);
 
         // All drawings go here
-        g2.drawImage(terrainImage, 0, 0, this);
-        g2.drawImage(baseImage, 0, 0, this);
+        g2.drawImage(claimsImage, 0, 0, this);
+        g2.drawImage(occupationsImage, 0, 0, this);
     }
 
     @Override
@@ -177,7 +196,7 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
         int mouseX = (int) ((e.getX() - xOffset) / zoomFactor);
         int mouseY = (int) ((e.getY() - yOffset) / zoomFactor);
 
-        int claimColor = baseImage.getRGB(mouseX, mouseY);
+        int claimColor = claimsImage.getRGB(mouseX, mouseY);
         int terrainColor = terrainImage.getRGB(mouseX, mouseY);
 
         mapController.showInfoForPixel(claimColor & 0x0000000000ffffff, terrainColor & 0x0000000000ffffff, e.getPoint());
