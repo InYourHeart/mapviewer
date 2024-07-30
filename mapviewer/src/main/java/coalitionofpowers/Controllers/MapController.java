@@ -1,9 +1,7 @@
 package coalitionofpowers.Controllers;
 
-import java.awt.Point;
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -24,6 +22,7 @@ import coalitionofpowers.Model.Terrain;
 import coalitionofpowers.UI.ApplicationView;
 import coalitionofpowers.UI.InfoView;
 import coalitionofpowers.UI.MapView;
+import coalitionofpowers.Utility.Colors;
 
 public class MapController {
 
@@ -37,7 +36,7 @@ public class MapController {
     private final Map<Integer, Region> regionList;
 
     public MapController(String title, String politicalImageFilepath, String terrainImageFilepath, String regionImageFilepath,
-            String occupationsImageFilepath, String devastationImageFilepath) throws IOException {
+            String occupationsImageFilepath, String devastationImageFilepath) throws IOException, InterruptedException {
 
         mapView = new MapView(ImageIO.read(new File(politicalImageFilepath)),
                 ImageIO.read(new File(terrainImageFilepath)),
@@ -69,7 +68,7 @@ public class MapController {
             String claimName = claimData[0];
             String claimHex = claimData[1];
 
-            claimList.put(Integer.parseInt(claimHex, 16) & 0xffffff, new Claim(claimName));
+            claimList.put(Integer.decode("0x" + claimHex), new Claim(claimName));
         }
     }
 
@@ -80,7 +79,7 @@ public class MapController {
             int terrainBaseTax = Integer.parseInt(terrainData[2]);
             int terrainBaseManpower = Integer.parseInt(terrainData[3]);
 
-            terrainList.put(Integer.parseInt(terrainHex, 16) & 0xffffff, new Terrain(terrainName, terrainHex, terrainBaseTax, terrainBaseManpower));
+            terrainList.put(Integer.decode("0x" + terrainHex), new Terrain(terrainName, terrainHex, terrainBaseTax, terrainBaseManpower));
         }
     }
 
@@ -89,7 +88,7 @@ public class MapController {
             String cityName = cityData[0];
             String cityHex = cityData[2];
 
-            cityList.put(Integer.parseInt(cityHex, 16) & 0xffffff, new City(cityName));
+            cityList.put(Integer.decode("0x" + cityHex), new City(cityName));
         }
     }
 
@@ -100,7 +99,7 @@ public class MapController {
             double regionTaxModifier = Double.parseDouble(regionData[2]);
             double regionManpowerModifier = Double.parseDouble(regionData[3]);
 
-            regionList.put(Integer.parseInt(regionHex, 16) & 0xffffff, new Region(regionName, regionTaxModifier, regionManpowerModifier));
+            regionList.put(Integer.decode("0x" + regionHex), new Region(regionName, regionTaxModifier, regionManpowerModifier));
         }
     }
 
@@ -111,95 +110,67 @@ public class MapController {
         int[] occupationsImagePixels = mapView.getOccupationsImagePixels();
         int[] devastationImagePixels = mapView.getDevastationImagePixels();
 
-        int height = mapView.getMapHeight();
-        int width = mapView.getMapWidth();
+        for (int i = 0; i < politicalImagePixels.length; i++) {
+            int politicalPixel = politicalImagePixels[i] & 0xffffff;
+            int occupationPixel = occupationsImagePixels[i] & 0xffffff;
 
-        String whitePixelsInPoliticalMap = "";
-        String whitePixelsInTerrainMap = "";
+            //If pixel is occupied and the occupier exists, do not count it.
+            if (claimList.containsKey(occupationPixel)) {
+                continue;
+            }
 
-        for (int j = 0; j < height; j++) {
-            for (int i = 0; i < width; i++) {
-                int pixelIndex = j * width + i;
+            if (!claimList.containsKey(politicalPixel)) {
+                continue;
+            }
 
-                int politicalPixel = politicalImagePixels[pixelIndex] & 0x0000000000ffffff;
-                int occupationPixel = occupationsImagePixels[pixelIndex] & 0x000000000ffffff;
+            Claim claim = claimList.get(politicalPixel);
+            if (claim != null) {
+                int terrainPixel = terrainImagePixels[i] & 0xffffff;
 
-                //If pixel is occupied and the occupier exists, do not count it.
-                if (claimList.containsKey(occupationPixel)) {
-                    continue;
-                }
+                Terrain terrain = terrainList.get(terrainPixel);
 
-                if (politicalPixel == 16777215) {
-                    whitePixelsInPoliticalMap += "(" + j + "," + i + ")\n";
-                    System.out.println(j + "," + i);
-                    continue;
-                }
+                if (terrain != null) {
+                    double taxModifier = 1;
+                    double manpowerModifier = 1;
 
-                if (politicalPixel == -1 || politicalPixel == 0) {
-                    continue;
-                }
-
-                Claim claim = claimList.get(politicalPixel);
-                if (claim != null) {
-                    int terrainPixel = terrainImagePixels[pixelIndex] & 0x0000000000ffffff;
-
-                    if (terrainPixel == 16777215) {
-                        whitePixelsInTerrainMap += "(" + j + "," + i + ")\n";
-                        System.out.println(j + "," + i);
-                        continue;
+                    Region region = regionList.get(regionsImagePixels[i] & 0xffffff);
+                    if (region != null) {
+                        taxModifier *= region.taxModifier;
+                        manpowerModifier *= region.manpowerModifier;
                     }
 
-                    Terrain terrain = terrainList.get(terrainPixel);
+                    double devastationPercentage = Colors.getDevastation(devastationImagePixels[i] & 0xffffff);
 
-                    if (terrain != null) {
-                        double taxModifier = 1;
-                        double manpowerModifier = 1;
-
-                        Region region = regionList.get(regionsImagePixels[pixelIndex] & 0x0000000000ffffff);
-                        if (region != null) {
-                            taxModifier *= region.taxModifier;
-                            manpowerModifier *= region.manpowerModifier;
-                        }
-
-                        claim.totalTax += terrain.baseTax * taxModifier;
-                        claim.totalManpower += terrain.baseManpower * manpowerModifier;
+                    if (devastationPercentage != -1) {
+                        taxModifier *= devastationPercentage;
+                        manpowerModifier *= devastationPercentage;
                     }
+
+                    claim.totalTax += terrain.baseTax * taxModifier;
+                    claim.totalManpower += terrain.baseManpower * manpowerModifier;
                 }
             }
-        }
 
-        if (!whitePixelsInPoliticalMap.isEmpty()) {
-            FileWriter w1 = new FileWriter("politicalMapErrors.txt");
-            w1.write(whitePixelsInPoliticalMap);
-            w1.close();
-        }
-
-        if (!whitePixelsInTerrainMap.isEmpty()) {
-            FileWriter w1 = new FileWriter("terrainMapErrors.txt");
-            w1.write(whitePixelsInTerrainMap);
-            w1.close();
         }
     }
 
-    public void showInfoForPixel(int claimColor, int terrainColor, Point clickPoint) {
+    public void showInfoForPixel(int claimColor, int terrainColor, int regionColor, int occupationColor, int devastationColor) {
         Claim claim = claimList.get(claimColor);
         City city = cityList.get(terrainColor);
-
-        if (city == null) {
-            infoView.setCityLabel("");
-        } else {
-            infoView.setCityLabel(city.name);
-        }
+        Region region = regionList.get(regionColor);
+        Claim occupier = claimList.get(occupationColor);
+        double devastationPercentage = Colors.getDevastation(devastationColor);
 
         if (claim == null) {
             infoView.setClaimLabel("None selected");
-            infoView.setTaxLabel("N/A");
-            infoView.setManpowerLabel("N/A");
+            infoView.setTaxLabel("");
+            infoView.setManpowerLabel("");
         } else {
             infoView.setClaimLabel(claim.name);
 
-            String taxString = claim.totalTax + " $";
+            String taxString = claim.totalTax + " £";
             String manpowerString = claim.totalManpower + " men";
+
             if (claim.totalTax > 1000000) {
                 taxString = String.format("%.2fM", claim.totalTax / 1000000.0) + " $";
             }
@@ -210,6 +181,30 @@ public class MapController {
 
             infoView.setTaxLabel(taxString);
             infoView.setManpowerLabel(manpowerString);
+        }
+
+        if (city == null) {
+            infoView.setCityLabel("");
+        } else {
+            infoView.setCityLabel(city.name);
+        }
+
+        if (region == null) {
+            infoView.setRegionLabel("");
+        } else {
+            infoView.setRegionLabel(region.name);
+        }
+
+        if (occupier == null) {
+            infoView.setOccupationLabel("");
+        } else {
+            infoView.setOccupationLabel(occupier.name);
+        }
+
+        if (devastationPercentage == -1) {
+            infoView.setDevastationLabel("");
+        } else {
+            infoView.setDevastationLabel(String.format("%.2f", devastationPercentage));
         }
     }
 }

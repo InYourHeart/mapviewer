@@ -8,17 +8,26 @@ public class InfoView extends JPanel {
 
     private final JLabel claimLabel;
     private final JLabel cityLabel;
+    private final JLabel regionLabel;
+    private final JLabel occupationLabel;
+    private final JLabel devastationLabel;
     private final JLabel taxLabel;
     private final JLabel manpowerLabel;
 
     public InfoView() {
-        claimLabel = new JLabel("Claim: None selected");
+        claimLabel = new JLabel("None selected");
         cityLabel = new JLabel("");
-        taxLabel = new JLabel("Tax: N/A");
-        manpowerLabel = new JLabel("Manpower: N/A");
+        regionLabel = new JLabel("");
+        occupationLabel = new JLabel("");
+        devastationLabel = new JLabel("");
+        taxLabel = new JLabel("");
+        manpowerLabel = new JLabel("");
 
         this.add(claimLabel);
         this.add(cityLabel);
+        this.add(regionLabel);
+        this.add(occupationLabel);
+        this.add(devastationLabel);
         this.add(taxLabel);
         this.add(manpowerLabel);
 
@@ -26,6 +35,11 @@ public class InfoView extends JPanel {
     }
 
     public void setClaimLabel(String name) {
+        if (name.equals("")) {
+            claimLabel.setText("None selected");
+            return;
+        }
+
         claimLabel.setText("Claim: " + name);
     }
 
@@ -36,6 +50,33 @@ public class InfoView extends JPanel {
         }
 
         cityLabel.setText("City: " + name);
+    }
+
+    public void setRegionLabel(String name) {
+        if (name.equals("")) {
+            regionLabel.setText("");
+            return;
+        }
+
+        regionLabel.setText("Region: " + name);
+    }
+
+    public void setOccupationLabel(String name) {
+        if (name.equals("")) {
+            occupationLabel.setText("");
+            return;
+        }
+
+        occupationLabel.setText("Occupied by: " + name);
+    }
+
+    public void setDevastationLabel(String level) {
+        if (level.equals("")) {
+            devastationLabel.setText("");
+            return;
+        }
+
+        devastationLabel.setText("Devastation level: " + level + "%");
     }
 
     public void setTaxLabel(String tax) {

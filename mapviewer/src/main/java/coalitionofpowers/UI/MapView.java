@@ -1,8 +1,9 @@
 package coalitionofpowers.UI;
 
-import java.awt.BorderLayout;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsEnvironment;
 import java.awt.MouseInfo;
 import java.awt.Point;
 import java.awt.event.MouseEvent;
@@ -12,15 +13,13 @@ import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 import java.awt.image.PixelGrabber;
 import java.io.IOException;
 
-import javax.swing.JFrame;
 import javax.swing.JPanel;
-import javax.swing.JTextArea;
 
 import coalitionofpowers.Controllers.MapController;
-import coalitionofpowers.Model.Claim;
 
 public class MapView extends JPanel implements MouseWheelListener, MouseListener, MouseMotionListener {
 
@@ -29,6 +28,12 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
     private final BufferedImage regionsImage;
     private final BufferedImage occupationsImage;
     private final BufferedImage devastationImage;
+
+    private final int[] claimsImagePixels;
+    private final int[] terrainImagePixels;
+    private final int[] regionsImagePixels;
+    private final int[] occupationsImagePixels;
+    private final int[] devastationImagePixels;
 
     private double zoomFactor = 1;
     private final double minZoom = 0.1;
@@ -49,17 +54,49 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
     private final MapController mapController;
 
     public MapView(BufferedImage claimImage, BufferedImage terrainImage, BufferedImage regionImage,
-            BufferedImage occupationsImage, BufferedImage devastationImage, MapController mapController) throws IOException {
+            BufferedImage occupationsImage, BufferedImage devastationImage, MapController mapController) throws IOException, InterruptedException {
 
-        this.claimsImage = claimImage;
-        this.terrainImage = terrainImage;
-        this.regionsImage = regionImage;
-        this.occupationsImage = occupationsImage;
-        this.devastationImage = devastationImage;
+        //Storing copies of the images' pixel arrays for later accesses
+        claimsImagePixels = getPixels(claimImage);
+        terrainImagePixels = getPixels(terrainImage);
+        regionsImagePixels = getPixels(regionImage);
+        occupationsImagePixels = getPixels(occupationsImage);
+        devastationImagePixels = getPixels(devastationImage);
+
+        //toCompatibleImage used so that the BufferedImages later used in rendering are:
+        //1: using compatible models (supposedly a good pratice, haven't actually check lol)
+        //2: not being kept in RAM instead of VRAM after having their buffer accessed in getPixels (VERY big performance issue)
+        this.claimsImage = toCompatibleImage(claimImage);
+        this.terrainImage = toCompatibleImage(terrainImage);
+        this.regionsImage = toCompatibleImage(regionImage);
+        this.occupationsImage = toCompatibleImage(occupationsImage);
+        this.devastationImage = toCompatibleImage(devastationImage);
 
         this.mapController = mapController;
 
         initComponent();
+    }
+
+    private BufferedImage toCompatibleImage(BufferedImage image) {
+        //Taken from https://stackoverflow.com/questions/196890/java2d-performance-issues
+
+        GraphicsConfiguration gfxConfig = GraphicsEnvironment.
+                getLocalGraphicsEnvironment().getDefaultScreenDevice().
+                getDefaultConfiguration();
+
+        if (image.getColorModel().equals(gfxConfig.getColorModel())) {
+            return image;
+        }
+
+        BufferedImage newImage = gfxConfig.createCompatibleImage(
+                image.getWidth(), image.getHeight(), image.getTransparency());
+
+        Graphics2D g2d = newImage.createGraphics();
+
+        g2d.drawImage(image, 0, 0, null);
+        g2d.dispose();
+
+        return newImage;
     }
 
     private void initComponent() {
@@ -69,23 +106,23 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
     }
 
     public int[] getClaimImagePixels() throws InterruptedException {
-        return getPixels(claimsImage);
+        return claimsImagePixels;
     }
 
     public int[] getTerrainImagePixels() throws InterruptedException {
-        return getPixels(terrainImage);
+        return terrainImagePixels;
     }
 
     public int[] getRegionsImagePixels() throws InterruptedException {
-        return getPixels(regionsImage);
+        return regionsImagePixels;
     }
 
     public int[] getOccupationsImagePixels() throws InterruptedException {
-        return getPixels(occupationsImage);
+        return occupationsImagePixels;
     }
 
     public int[] getDevastationImagePixels() throws InterruptedException {
-        return getPixels(devastationImage);
+        return devastationImagePixels;
     }
 
     private int[] getPixels(BufferedImage image) throws InterruptedException {
@@ -93,7 +130,22 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
         int height = image.getHeight();
         int[] pixels = new int[width * height];
 
-        new PixelGrabber(image, 0, 0, width, height, pixels, 0, width).grabPixels();
+        byte[] bytes = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
+
+        //Check if image bit depth is 8bit or 24bit. Big performance hit when processing 24bit png instead of 8bit (960ms vs 40ms) with PixelGrabber
+        if (bytes.length != pixels.length) {
+            //Handle a 24bit image
+            int alphaOffset = image.getAlphaRaster() != null ? 1 : 0;
+
+            for (int i = 0; i + 2 + alphaOffset < pixels.length; i++) {
+                pixels[i] += ((int) bytes[i * 3 + alphaOffset] & 0xff); // blue
+                pixels[i] += (((int) bytes[i * 3 + alphaOffset + 1] & 0xff) << 8); // green
+                pixels[i] += (((int) bytes[i * 3 + alphaOffset + 2] & 0xff) << 16); // red
+            }
+        } else {
+            //Handle a 8bit image
+            new PixelGrabber(image, 0, 0, width, height, pixels, 0, width).grabPixels();
+        }
 
         return pixels;
     }
@@ -196,31 +248,15 @@ public class MapView extends JPanel implements MouseWheelListener, MouseListener
         int mouseX = (int) ((e.getX() - xOffset) / zoomFactor);
         int mouseY = (int) ((e.getY() - yOffset) / zoomFactor);
 
-        int claimColor = claimsImage.getRGB(mouseX, mouseY);
-        int terrainColor = terrainImage.getRGB(mouseX, mouseY);
+        int index = mouseY * getMapWidth() + mouseX;
 
-        mapController.showInfoForPixel(claimColor & 0x0000000000ffffff, terrainColor & 0x0000000000ffffff, e.getPoint());
-    }
+        int claimColor = claimsImagePixels[index] & 0xffffff;
+        int terrainColor = terrainImagePixels[index] & 0xffffff;
+        int regionColor = regionsImagePixels[index] & 0xffffff;
+        int occupationColor = occupationsImagePixels[index] & 0xffffff;
+        int devastationColor = devastationImagePixels[index] & 0xffffff;
 
-    public void showInfoForClaim(Claim claim, Point point) {
-        JTextArea textArea;
-
-        JPanel panel = new JPanel();
-        panel.setLayout(new BorderLayout());
-
-        textArea = new JTextArea("Claim: " + claim.name + "\n Tax: " + claim.totalTax + "\n Manpower: " + claim.totalManpower);
-
-        textArea.setEditable(false);
-        panel.add(textArea, BorderLayout.CENTER);
-
-        JFrame frame = new JFrame();
-        frame.add(panel);
-        frame.pack();
-        frame.setLocation(point);
-        frame.setVisible(true);
-
-        frame.setSize(frame.getWidth() * 3 / 2, frame.getHeight());
-        frame.setAlwaysOnTop(true);
+        mapController.showInfoForPixel(claimColor, terrainColor, regionColor, occupationColor, devastationColor);
     }
 
     @Override
